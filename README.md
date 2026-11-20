@@ -26,10 +26,11 @@ Archive configuration is wiki-side, in templates:
 
 `./audit-templates.py` lists pages archivebot would skip, and why.
 
-The bot runs through `archivebot_wrapper.py`. Its only addition: when no.wiki's
+The bot runs through `archivebot_wrapper.py`. Its only addition: when a wiki's
 spam blacklist rejects an archive save (a thread citing `archive.today`, for
-example), it retries once with that URL wrapped in `<nowiki>`. The URL stays in
-the archive as plain text, and the job log records `SANITIZED: wrapped ...`.
+example), that URL is wrapped in `<nowiki>` and the save is retried, up to five
+times for pages citing several blocked sites. The URL stays in the archive as
+plain text, and the job log records `SANITIZED: wrapped ...`.
 
 ## Pinned versions
 

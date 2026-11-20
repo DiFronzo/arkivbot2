@@ -30,6 +30,7 @@ from pywikibot.page import BasePage
 # Characters that can appear inside a URL in wikitext.
 URL_BOUNDARY = r'[^\s\[\]{}|<>"\']'
 TRAILING = '.,;:!?'
+MAX_ATTEMPTS = 5
 
 _original_save: Any = None
 
@@ -70,6 +71,9 @@ def neutralise(text: str, needle: str) -> tuple[str, int]:
     """
     if not needle or not text:
         return text, 0
+    # The API reports the matched text, but a regex fragment would arrive with
+    # backslashes; strip them so the literal text can be found.
+    needle = needle.replace('\\', '')
 
     pattern = re.compile(
         rf'{URL_BOUNDARY}*{re.escape(needle)}{URL_BOUNDARY}*', re.IGNORECASE
@@ -82,10 +86,9 @@ def neutralise(text: str, needle: str) -> tuple[str, int]:
         url, trailing = _trim(match.group(0))
         if not url:
             return match.group(0)
+        # Only links pointed at the reported site. Anything else on the page is
+        # left exactly as it is.
         if not whole_url and needle.lower() not in _host(url).lower():
-            return match.group(0)
-        # A bare host with no scheme and no path is prose, not a link.
-        if '://' not in url and not url.startswith('//') and '/' not in url:
             return match.group(0)
         if text[:match.start()].endswith('<nowiki>'):
             return match.group(0)
@@ -94,23 +97,32 @@ def neutralise(text: str, needle: str) -> tuple[str, int]:
 
     return pattern.sub(repl, text), wrapped
 def save_with_fallback(self: Any, *args: Any, **kwargs: Any) -> Any:
-    """Save the page; on a spam block, retry once with the URL neutralised."""
-    try:
-        return _original_save(self, *args, **kwargs)
-    except SpamblacklistError as error:
-        text, count = neutralise(self.text, error.url)
-        if not count:
-            # The blocked text is not in the page (different normalisation?), so
-            # there is nothing safe to rewrite: behave exactly as before.
-            raise
-        print(
-            f'SANITIZED: wrapped {count} occurrence(s) of {error.url} in '
-            f'<nowiki> on [[{self.title()}]], retrying the save',
-            file=sys.stderr,
-            flush=True,
-        )
-        self.text = text
-        return _original_save(self, *args, **kwargs)
+    """Save the page, neutralising whatever sites the spam filter rejects.
+
+    A wiki can report a different blacklisted site on each attempt (a page can
+    cite several), so this loops until the save goes through, nothing new can be
+    neutralised, or the attempt budget runs out.
+    """
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            return _original_save(self, *args, **kwargs)
+        except SpamblacklistError as error:
+            if attempt == MAX_ATTEMPTS:
+                raise
+            text, count = neutralise(self.text, error.url)
+            if not count:
+                # The blocked text is not in the page (different normalisation?),
+                # so there is nothing safe to rewrite: behave as before.
+                raise
+            print(
+                f'SANITIZED: wrapped {count} occurrence(s) of {error.url} in '
+                f'<nowiki> on [[{self.title()}]] '
+                f'(attempt {attempt}/{MAX_ATTEMPTS})',
+                file=sys.stderr,
+                flush=True,
+            )
+            self.text = text
+    raise AssertionError('unreachable: the loop either returns or raises')
 
 
 def install() -> None:

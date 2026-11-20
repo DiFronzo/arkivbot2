@@ -222,11 +222,14 @@ Bumping Python or pywikibot later: edit `.python-version`/`requires-python` and
   checkout can never disagree).
 - **no.wiki's spam blacklist can block an archive save** (archive.today is
   listed). The save is rejected, archivebot skips the page, and those threads
-  never move. `archivebot_wrapper.py` retries once with that URL wrapped in
-  `<nowiki>`: the URL stays readable and copyable, only the clickable link is
-  lost, and the job log records `SANITIZED: wrapped N occurrence(s) of ...`.
-  The edit summary is unchanged. If the retry is rejected too, the page is
-  skipped exactly as before.
+  never move. `archivebot_wrapper.py` wraps that URL in `<nowiki>` and retries,
+  up to five times, because a page can cite several blacklisted sites and the
+  wiki reports them one per attempt. The needle comes from the API's
+  `spamblacklist` field, so any site on any wiki's blacklist is handled, not
+  just archive.today. The URL stays readable and copyable, only the clickable
+  link is lost, and the job log records `SANITIZED: wrapped N occurrence(s) of
+  ...`. The edit summary is unchanged. If nothing can be neutralised, or the
+  budget is exhausted, the page is skipped exactly as before.
 - **The i18n git submodule is required** (`scripts/i18n`); without it archivebot
   dies with `TranslationError: No translation available for key
   archivebot-archive-summary`.

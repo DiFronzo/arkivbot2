@@ -237,13 +237,50 @@ cases = [
     ('Two: https://archive.today/a and archive.today/b.)', 'archive.today', 2),
     ('Escaped: <nowiki>https://archive.today/x</nowiki>', 'archive.today', 0),
     ('Other host: https://example.org/archive.today-ish', 'archive.today', 0),
-    ('Prose mention of archive.today with no link', 'archive.today', 0),
+    # The blacklist matches raw text, so a bare domain can be the trigger.
+    ('Bare domain in text: archive.today/x', 'archive.today', 1),
     ('Permalink https://en.wikipedia.org/wiki/Foo_(bar)', 'archive.today', 0),
 ]
 for text, needle, expected in cases:
     _, count = wrapper.neutralise(text, needle)
     assert count == expected, f'{text!r}: wrapped {count}, expected {expected}'
-print('ok: 6 cases, only blacklisted hosts are wrapped')
+
+# A save can be rejected for a different site on each attempt.
+import contextlib
+import io
+
+from pywikibot.exceptions import SpamblacklistError
+
+
+class StubPage:
+    def __init__(self, text):
+        self.text = text
+
+    def title(self):
+        return 'Diskusjon:Test'
+
+
+page = StubPage('A https://archive.today/x and B https://t.co/z')
+blocked = ['archive.today', 't.co']
+attempts = []
+
+
+def fake_save(self, *args, **kwargs):
+    attempts.append(self.text)
+    if blocked:
+        raise SpamblacklistError(self, blocked.pop(0))
+    return 'saved'
+
+
+wrapper._original_save = fake_save
+with contextlib.redirect_stderr(io.StringIO()):
+    result = wrapper.save_with_fallback(page, 'summary')
+
+assert result == 'saved', result
+assert len(attempts) == 3, f'expected 3 save attempts, got {len(attempts)}'
+assert '<nowiki>https://archive.today/x</nowiki>' in page.text
+assert '<nowiki>https://t.co/z</nowiki>' in page.text
+print('ok: 6 link cases, and two blocked sites resolved in one save')
 PY
 
 step "python syntax"
