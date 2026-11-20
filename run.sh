@@ -99,10 +99,12 @@ if [[ ! -d "$PYWIKI/scripts/i18n/archivebot" ]]; then
     echo "❌ pywikibot checkout has no i18n submodule. Rerun bootstrap-venv" >&2
     exit 1
 fi
-if [[ ! -f filter-log.py ]]; then
-    echo "❌ filter-log.py is missing; refusing to publish unfiltered output" >&2
-    exit 1
-fi
+for helper in filter-log.py archivebot_wrapper.py; do
+    if [[ ! -f "$helper" ]]; then
+        echo "❌ $helper is missing; refusing to run" >&2
+        exit 1
+    fi
+done
 
 write_status() {
     [[ "$SIMULATE" == 1 ]] && return 0
@@ -167,7 +169,7 @@ run_capped() {
 
 run_archivebot() {  # $1 = language code, $2 = config template
     local -a statuses
-    run_capped stdbuf -o 0 "$PYTHON" "$PYWIKI/scripts/archivebot.py" \
+    run_capped stdbuf -o 0 "$PYTHON" "$HERE/archivebot_wrapper.py" \
         ${ARCHIVEBOT_OPTS[@]+"${ARCHIVEBOT_OPTS[@]}"} -lang:"$1" -log:main.log "$2" 2>&1 \
         | "$PYTHON" filter-log.py \
         | tee -a "$LOG"

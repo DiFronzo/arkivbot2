@@ -224,8 +224,30 @@ grep -q '/data/project' <<<"$FILTER_OUT" && fail "filter kept an absolute path"
 grep -qE '^[[:space:]]*[~^]{2,}[[:space:]]*$' <<<"$FILTER_OUT" && fail "filter kept traceback carets"
 echo "ok"
 
+step "archivebot_wrapper neutralises only blacklisted links"
+PYTHONPATH="$PYWIKI" uv run --quiet python - <<'PY'
+import importlib.util
+
+spec = importlib.util.spec_from_file_location('wrapper', 'archivebot_wrapper.py')
+wrapper = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(wrapper)
+
+cases = [
+    ('See https://archive.today/abc123 for the source.', 'archive.today', 1),
+    ('Two: https://archive.today/a and archive.today/b.)', 'archive.today', 2),
+    ('Escaped: <nowiki>https://archive.today/x</nowiki>', 'archive.today', 0),
+    ('Other host: https://example.org/archive.today-ish', 'archive.today', 0),
+    ('Prose mention of archive.today with no link', 'archive.today', 0),
+    ('Permalink https://en.wikipedia.org/wiki/Foo_(bar)', 'archive.today', 0),
+]
+for text, needle, expected in cases:
+    _, count = wrapper.neutralise(text, needle)
+    assert count == expected, f'{text!r}: wrapped {count}, expected {expected}'
+print('ok: 6 cases, only blacklisted hosts are wrapped')
+PY
+
 step "python syntax"
-for file in serve.py filter-log.py check-oauth.py web-preview.py audit-templates.py user-config.py.example; do
+for file in serve.py filter-log.py archivebot_wrapper.py check-oauth.py web-preview.py audit-templates.py user-config.py.example; do
     uv run --quiet python -m py_compile "$file" || fail "py_compile $file"
 done
 echo "ok"

@@ -52,6 +52,7 @@ plus a static status page at <https://arkivbot2.toolforge.org/>.
 | `PYWIKIBOT_VERSION` | The pywikibot release tag everything is pinned to (wheel and checkout). |
 | `requirements.txt` | Hashed, locked runtime requirements. Regenerate with `uv export`. |
 | `pyproject.toml` / `uv.lock` / `.python-version` | Local dev env (uv), Python 3.13; dependency pins must match `PYWIKIBOT_VERSION`. |
+| `archivebot_wrapper.py` | Runs `archivebot.py` with one hook: a save rejected by the wiki's spam blacklist is retried once with the offending URL wrapped in `<nowiki>`, logged as `SANITIZED`. |
 | `serve.py` | Status-page server for the `arkivbot-web` job. Serves an allowlist only (`/`, `/index.html`, `/out`, `/status`); refuses traversal, dotfiles and symlinks. No request logging, `nosniff`, `text/plain` + `no-store` for the runtime files, `200 unknown` before the first run. |
 | `filter-log.py` | Strips traceback frames and absolute paths from archivebot output before it reaches `public_html/out`. Full output stays in `logs/main.log` and the job log. |
 | `health-check.sh` | Liveness probe for `arkivbot-web` (`health-check-script`), curl-free. |
@@ -219,6 +220,13 @@ Bumping Python or pywikibot later: edit `.python-version`/`requires-python` and
 - **`archivebot.py` is not in the PyPI wheel**; it lives in the pinned checkout,
   which `run.sh` puts on `PYTHONPATH` (this also shadows the wheel, so wheel and
   checkout can never disagree).
+- **no.wiki's spam blacklist can block an archive save** (archive.today is
+  listed). The save is rejected, archivebot skips the page, and those threads
+  never move. `archivebot_wrapper.py` retries once with that URL wrapped in
+  `<nowiki>`: the URL stays readable and copyable, only the clickable link is
+  lost, and the job log records `SANITIZED: wrapped N occurrence(s) of ...`.
+  The edit summary is unchanged. If the retry is rejected too, the page is
+  skipped exactly as before.
 - **The i18n git submodule is required** (`scripts/i18n`); without it archivebot
   dies with `TranslationError: No translation available for key
   archivebot-archive-summary`.
