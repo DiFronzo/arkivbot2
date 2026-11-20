@@ -1,0 +1,40 @@
+---
+# Ref: https://wikitech.wikimedia.org/wiki/Help:Toolforge/Running_jobs
+# Tool: `arkivbot2` (https://arkivbot2.toolforge.org)
+# Images: `toolforge jobs images`. Newest Python image as of 2026 is python3.13.
+#
+# Every key below appears in the official YAML example for `toolforge jobs load`
+# (name, command, image, schedule, continuous, port, publish, mem, emails,
+# no-filelog, health-check-script). Undocumented keys are avoided on purpose:
+# a silently ignored `timeout:` would look like protection and provide none, so
+# the time limit is enforced inside run.sh instead.
+
+# Daily archiving run; entry point is run.sh.
+- name: arkivbot
+  command: ./run.sh
+  image: python3.13
+  schedule: "0 5 * * *"
+  emails: onfailure
+
+# Status page on https://arkivbot2.toolforge.org/: static files, no PHP.
+# A published continuous job rather than a `webservice`: the old php7.4 image is
+# gone (PHP < 8.2 was dropped after the CVE-2026-109618 / CVE-2026-109619
+# "php2shell" RCEs), and `toolforge jobs run --webservice --command ...` only
+# *appends* to the image's default server command.
+- name: arkivbot-web
+  command: python3 serve.py --port 8080 --bind 0.0.0.0
+  image: python3.13
+  continuous: true
+  port: 8080
+  publish: "/"
+  health-check-script: ./health-check.sh
+  # No file log: visitor polling would grow arkivbot-web.err without bound.
+  no-filelog: true
+  mem: 256Mi
+
+# Keeps the daily job's .out/.err files from filling the tool home forever.
+- name: logrotate-arkivbot
+  command: logrotate -v $TOOL_DATA_DIR/logrotate.conf --state $TOOL_DATA_DIR/logrotate.state
+  image: mariadb
+  schedule: "@daily"
+  emails: onfailure

@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="color-scheme" content="light dark">
+	<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+	<meta name="theme-color" content="#0f1216" media="(prefers-color-scheme: dark)">
+	<title>ArkivBot2 status</title>
+	<meta name="description" content="Live status page for ArkivBot2, the Pywikibot archiving bot (account IngeniousBot) on Norwegian Bokmål and Northern Sami Wikipedia.">
+	<style>
+		:root {
+			color-scheme: light dark;
+			--bg: #f6f7f9;
+			--card: #ffffff;
+			--text: #1b1f24;
+			--muted: #5b6470;
+			--border: #e2e6ea;
+			--accent: #2f6feb;
+			--ok: #17784a;
+			--ok-bg: #e6f4ec;
+			--idle: #6b7480;
+			--idle-bg: #eceff3;
+			--error: #bd2b20;
+			--error-bg: #fdecea;
+			--code: #f2f4f7;
+			--radius: 12px;
+			--shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 4px 16px rgb(16 24 40 / 6%);
+		}
+
+		@media (prefers-color-scheme: dark) {
+			:root {
+				--bg: #0f1216;
+				--card: #171b21;
+				--text: #e6e9ee;
+				--muted: #98a2b0;
+				--border: #262c35;
+				--accent: #7aa7ff;
+				--ok: #5adb9a;
+				--ok-bg: #12291f;
+				--idle: #a3adba;
+				--idle-bg: #1f242c;
+				--error: #ff8b80;
+				--error-bg: #2b1614;
+				--code: #10141a;
+				--shadow: 0 1px 2px rgb(0 0 0 / 40%);
+			}
+		}
+
+		* { box-sizing: border-box; }
+
+		body {
+			margin: 0;
+			background: var(--bg);
+			color: var(--text);
+			font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+			-webkit-text-size-adjust: 100%;
+		}
+
+		.wrap {
+			max-width: 54rem;
+			margin: 0 auto;
+			padding: clamp(1rem, 4vw, 2.5rem);
+			display: flex;
+			flex-direction: column;
+			gap: clamp(1rem, 3vw, 1.5rem);
+			min-height: 100vh;
+		}
+
+		a { color: var(--accent); text-underline-offset: 2px; }
+		a:focus-visible, button:focus-visible {
+			outline: 2px solid var(--accent);
+			outline-offset: 2px;
+			border-radius: 4px;
+		}
+
+		/* ---------- header ---------- */
+
+		header { display: grid; gap: .15rem; }
+
+		.head-row {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;
+			justify-content: space-between;
+			gap: .5rem 1rem;
+		}
+
+		h1 {
+			margin: 0;
+			font-size: clamp(1.35rem, 4vw, 1.7rem);
+			letter-spacing: -.02em;
+		}
+
+		.tagline {
+			margin: .15rem 0 0;
+			color: var(--muted);
+			font-size: .9rem;
+		}
+
+		.pill {
+			display: inline-flex;
+			align-items: center;
+			gap: .5rem;
+			padding: .45rem .8rem;
+			border-radius: 999px;
+			background: var(--idle-bg);
+			color: var(--idle);
+			font-size: .9rem;
+			font-weight: 600;
+			white-space: nowrap;
+		}
+
+		.pill[data-state="running"] { background: var(--ok-bg); color: var(--ok); }
+		.pill[data-state="error"] { background: var(--error-bg); color: var(--error); }
+
+		.dot {
+			width: .55rem;
+			height: .55rem;
+			border-radius: 50%;
+			background: currentColor;
+			flex: none;
+		}
+
+		.pill[data-state="running"] .dot { animation: pulse 1.8s ease-in-out infinite; }
+
+		@keyframes pulse {
+			0%, 100% { opacity: 1; transform: scale(1); }
+			50% { opacity: .35; transform: scale(.8); }
+		}
+
+		/* ---------- cards ---------- */
+
+		.card {
+			background: var(--card);
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			box-shadow: var(--shadow);
+			overflow: hidden;
+		}
+
+		.stats {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+			gap: 1px;
+			background: var(--border);
+		}
+
+		.stat {
+			background: var(--card);
+			padding: .9rem 1.1rem;
+		}
+
+		.stat dt {
+			color: var(--muted);
+			font-size: .75rem;
+			font-weight: 600;
+			letter-spacing: .06em;
+			text-transform: uppercase;
+		}
+
+		.stat dd {
+			margin: .2rem 0 0;
+			font-size: 1rem;
+			font-weight: 600;
+			text-wrap: pretty;
+			overflow-wrap: anywhere;
+		}
+
+		@media (max-width: 30rem) {
+			.stat { padding: .75rem .85rem; }
+			.stat dd { font-size: .95rem; }
+		}
+
+		/* very narrow phones wrap the longer labels; reserve two lines so the
+		   grid rows stay aligned */
+		@media (max-width: 22rem) {
+			.stat dt { min-height: 2lh; }
+		}
+
+		.card-head {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: baseline;
+			justify-content: space-between;
+			gap: .25rem 1rem;
+			padding: .9rem 1.1rem;
+			border-bottom: 1px solid var(--border);
+		}
+
+		.card-head h2 {
+			margin: 0;
+			font-size: .95rem;
+			font-weight: 650;
+		}
+
+		.card-head p {
+			margin: 0;
+			color: var(--muted);
+			font-size: .8rem;
+		}
+
+		/* ---------- log ---------- */
+
+		.log {
+			margin: 0;
+			padding: 1rem 1.1rem;
+			background: var(--code);
+			font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+			font-size: .82rem;
+			line-height: 1.6;
+			max-height: min(50vh, 32rem);
+			overflow: auto;
+			white-space: pre-wrap;
+			overflow-wrap: anywhere;
+			tab-size: 4;
+			-webkit-overflow-scrolling: touch;
+		}
+
+		.log .line { display: block; min-height: 1.6em; }
+		.log .is-rule {
+			font-size: 0;
+			line-height: 0;
+			margin: .5rem 0;
+			border-top: 1px solid var(--border);
+			color: transparent;
+		}
+		.log .is-event { color: var(--accent); font-weight: 600; }
+		.log .is-page { color: var(--text); font-weight: 600; }
+		.log .is-error { color: var(--error); }
+		.log .is-detail { color: var(--muted); }
+		.log .is-empty { color: var(--muted); font-style: italic; }
+
+		/* ---------- footer ---------- */
+
+		footer {
+			margin-top: auto;
+			padding-top: .5rem;
+			display: flex;
+			flex-wrap: wrap;
+			gap: .5rem 1.25rem;
+			color: var(--muted);
+			font-size: .85rem;
+		}
+
+		footer a {
+			color: var(--text);
+			text-decoration: none;
+			padding: .35rem .1rem;
+		}
+
+		footer a:hover { color: var(--accent); text-decoration: underline; }
+
+		@media (prefers-reduced-motion: reduce) {
+			.pill[data-state="running"] .dot { animation: none; }
+		}
+	</style>
+</head>
+<body>
+	<div class="wrap">
+		<header>
+			<div class="head-row">
+				<h1>ArkivBot2</h1>
+				<p class="pill" id="pill" data-state="loading" role="status" aria-live="polite">
+					<span class="dot" aria-hidden="true"></span>
+					<span id="state">Checking…</span>
+				</p>
+			</div>
+			<p class="tagline">Archiving talk pages on Norwegian Bokmål and Northern Sami Wikipedia as IngeniousBot</p>
+		</header>
+
+		<section class="card" aria-label="Current state">
+			<dl class="stats">
+				<div class="stat">
+					<dt>Run started</dt>
+					<dd id="stat-started">…</dd>
+				</div>
+				<div class="stat">
+					<dt>Run finished</dt>
+					<dd id="stat-finished">…</dd>
+				</div>
+				<div class="stat">
+					<dt>Threads archived</dt>
+					<dd id="stat-threads">…</dd>
+				</div>
+				<div class="stat">
+					<dt>Last checked</dt>
+					<dd id="stat-updated">…</dd>
+				</div>
+			</dl>
+		</section>
+
+		<section class="card" aria-label="Run log">
+			<div class="card-head">
+				<h2>Run log</h2>
+				<p id="log-meta">latest run, newest output at the bottom</p>
+			</div>
+			<pre class="log" id="log" aria-busy="true">Loading the log…</pre>
+		</section>
+
+		<footer>
+			<a href="//no.wikipedia.org/wiki/Bruker:IngeniousBot">User page @nowiki</a>
+			<a href="//no.wikipedia.org/wiki/Spesial:Bidrag/IngeniousBot">Contributions @nowiki</a>
+			<a href="//no.wikipedia.org/wiki/Mal:Autoarkivering">Archive config @nowiki</a>
+			<a href="//github.com/danmichaelo/arkivbot">Source @github</a>
+		</footer>
+	</div>
+
+	<noscript>
+		<p style="padding: 0 1.5rem; font-family: system-ui, sans-serif">
+			This page needs JavaScript to fetch the log. The raw files are at
+			<a href="out">out</a> and <a href="status">status</a>.
+		</p>
+	</noscript>
+
+	<script>
+		const IDLE_INTERVAL = 15000;   // idle: pick up the next scheduled run
+		const RUNNING_INTERVAL = 5000; // archiving: follow the log (kept well under Toolforge's 100 req/min/IP)
+		const MAX_BACKOFF = 120000;
+		const STALLED_AFTER = 3 * 60 * 60 * 1000; // a run older than this is presumed dead
+
+		const el = {
+			pill: document.getElementById('pill'),
+			state: document.getElementById('state'),
+			started: document.getElementById('stat-started'),
+			finished: document.getElementById('stat-finished'),
+			threads: document.getElementById('stat-threads'),
+			updated: document.getElementById('stat-updated'),
+			log: document.getElementById('log'),
+			logMeta: document.getElementById('log-meta'),
+		};
+
+		let lastCheck = null;
+		let lastLog = null;
+		let lastStatus = null;
+		let running = false;
+		let rendered = false;
+		let timer = null;
+		let inFlight = false;
+		let backoff = 0;
+
+		function setText(node, value) {
+			if (node.textContent !== value) node.textContent = value;
+		}
+
+		function classify(line) {
+			if (/^(ERROR|CRITICAL)\b|^Traceback \(most recent call last\):/.test(line)) return 'is-error';
+			if (/^\s*File "/.test(line) || /^\s{4,}\S/.test(line)) return 'is-detail';
+			if (/^-{5,}$/.test(line.trim())) return 'is-rule';
+			if (/ : Bot (started|finished)\b| : SIMULATED run (started|finished)\b/.test(line)) return 'is-event';
+			if (/^>>> .*? <<<$/.test(line.trim())) return 'is-page';
+			if (/^(Pywikibot|Release version|Python|packaging version|mwparserfromhell|wikitextparser|requests version|User-Agent|PYWIKIBOT_DIR|Config base dir)/.test(line)) return 'is-detail';
+			return '';
+		}
+
+		function renderLog(text) {
+			const atBottom = el.log.scrollHeight - el.log.scrollTop - el.log.clientHeight < 48;
+			const fragment = document.createDocumentFragment();
+
+			for (const line of text.replace(/\s+$/, '').split('\n')) {
+				const span = document.createElement('span');
+				span.className = 'line ' + classify(line);
+				if (line.trim() === '') {
+					span.classList.add('is-empty');
+					span.textContent = '\u200b';
+				} else {
+					span.textContent = line;
+				}
+				fragment.append(span);
+			}
+
+			el.log.replaceChildren(fragment);
+			el.log.setAttribute('aria-busy', 'false');
+			// first paint shows the start of the run; later updates follow the tail
+			if (rendered && atBottom) el.log.scrollTop = el.log.scrollHeight;
+			rendered = true;
+		}
+
+		// "Fri Nov 20 21:41:26 CET 2026" -> "20 Nov, 21:41". Tolerates the
+		// space-padded day that date(1) writes for days 1-9 ("Nov  6").
+		function compactStamp(raw) {
+			const parts = raw.match(/^\w{3} +(\w{3}) +(\d{1,2}) +(\d{2}:\d{2}):\d{2} +\S+ +(\d{4})$/);
+			if (!parts) return raw;
+			const [, month, day, time, year] = parts;
+			const suffix = Number(year) === new Date().getFullYear() ? '' : ' ' + year;
+			return day + ' ' + month + suffix + ', ' + time;
+		}
+
+		// Marker lines look like "<date> : Bot started" (also SIMULATED ...); the
+		// date itself may contain colons, so match the marker from the right.
+		function stamp(text, markers) {
+			const pattern = markers.join('|');
+			const match = text.match(new RegExp('^(.+?) : (?:' + pattern + ')(?=\\s|$)', 'm'));
+			return match ? match[1].trim() : null;
+		}
+
+		function renderStats(text) {
+			const started = stamp(text, ['Bot started', 'SIMULATED run started']);
+			const finished = stamp(text, ['Bot finished', 'SIMULATED run finished']);
+			const threads = [...text.matchAll(/Archiving (\d+) thread/g)]
+				.reduce((sum, match) => sum + Number(match[1]), 0);
+
+			el.started.title = started || '';
+			el.finished.title = finished || '';
+			setText(el.started, started ? compactStamp(started) : 'no run in the log');
+			setText(el.finished, finished
+				? compactStamp(finished)
+				: (running ? 'in progress' : 'unknown'));
+			setText(el.threads, threads
+				? String(threads) + (finished ? '' : ' so far')
+				: (running ? 'none yet' : 'none'));
+			setText(el.logMeta, finished
+				? 'latest completed run, newest output at the bottom'
+				: 'newest output at the bottom');
+		}
+
+		function setState(kind, label) {
+			if (el.pill.dataset.state === kind) return setText(el.state, label);
+			el.pill.dataset.state = kind;
+			setText(el.state, label);
+		}
+
+		function showError(message) {
+			const span = document.createElement('span');
+			span.className = 'line is-error';
+			span.textContent = message;
+			el.log.replaceChildren(span);
+			el.log.setAttribute('aria-busy', 'false');
+			lastLog = null;
+		}
+
+		async function get(path) {
+			const response = await fetch(path + '?q=' + Math.random(), { cache: 'no-store' });
+			if (response.status === 429) {
+				const error = new Error('rate limited');
+				error.rateLimited = true;
+				throw error;
+			}
+			if (!response.ok) throw new Error(path + ' → HTTP ' + response.status);
+			const modified = Date.parse(response.headers.get('last-modified') || '');
+			return { text: await response.text(), modified: Number.isNaN(modified) ? null : modified };
+		}
+
+		async function update() {
+			if (document.hidden || inFlight) return schedule(running ? RUNNING_INTERVAL : IDLE_INTERVAL);
+			inFlight = true;
+
+			try {
+				const status = await get('status');
+				const value = status.text.trim();
+				running = value === 'true';
+				const stalled = running && status.modified !== null
+					&& Date.now() - status.modified > STALLED_AFTER;
+
+				// only refetch the (larger) log when something changed
+				if (lastLog === null || running || value !== lastStatus) {
+					const log = await get('out');
+					if (log.text !== lastLog) {
+						renderLog(log.text);
+						lastLog = log.text;
+					}
+					renderStats(log.text);
+				}
+				lastStatus = value;
+
+				if (stalled) {
+					setState('error', 'Stalled?');
+					setText(el.finished, 'stalled');
+				} else {
+					setState(running ? 'running' : 'idle', running ? 'Archiving now' : 'Idle');
+				}
+
+				backoff = 0;
+				lastCheck = new Date();
+				tick();
+			} catch (error) {
+				setState('error', error.rateLimited ? 'Rate limited' : 'Unreachable');
+				setText(el.finished, 'unknown');
+				showError((error.rateLimited ? 'Toolforge is rate limiting requests: ' : 'Could not load the log: ')
+					+ error.message);
+				lastCheck = new Date();
+				tick();
+				backoff = Math.min(backoff ? backoff * 2 : IDLE_INTERVAL, MAX_BACKOFF);
+			} finally {
+				inFlight = false;
+				schedule(backoff || (running ? RUNNING_INTERVAL : IDLE_INTERVAL));
+			}
+		}
+
+		function schedule(delay) {
+			clearTimeout(timer);
+			timer = setTimeout(update, delay);
+		}
+
+		function tick() {
+			if (!lastCheck) return;
+			const seconds = Math.max(0, Math.round((Date.now() - lastCheck.getTime()) / 1000));
+			setText(el.updated, seconds < 5 ? 'just now' : seconds + ' s ago');
+		}
+
+		setInterval(tick, 1000);
+		document.addEventListener('visibilitychange', () => {
+			if (!document.hidden) schedule(0);
+		});
+		update();
+	</script>
+</body>
+</html>

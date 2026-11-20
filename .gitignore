@@ -1,0 +1,41 @@
+# Runtime artifacts written by run.sh / the jobs
+public_html/out
+public_html/status
+logs/
+apicache/
+throttle.ctrl
+.arkivbot.lock
+*.log
+
+# Toolforge job logs (job name .out/.err land in the tool home)
+arkivbot.out
+arkivbot.err
+arkivbot-web.out
+arkivbot-web.err
+bootstrap-venv.out
+bootstrap-venv.err
+arkivbot-dry.out
+arkivbot-dry.err
+logrotate-arkivbot.out
+logrotate-arkivbot.err
+logrotate.state*
+
+# Python / pywikibot / uv locals
+pywikibot
+ENV
+.venv
+__pycache__/
+*.pyc
+.pywikibot
+.python_history
+.cache
+.toolskube
+
+# Credentials — never commit (see AGENTS.md "Hard rules")
+user-config.py
+user-fixes.py
+user-password.py
+passwordfile
+.env
+.env.*
+!.env.example

@@ -1,0 +1,50 @@
+[project]
+name = "arkivbot2"
+version = "0.2.0"
+description = "Pywikibot archivebot for Norwegian Bokmål and Northern Sami Wikipedia (Toolforge tool `arkivbot2`)"
+readme = "README"
+license = { file = "LICENSE" }
+requires-python = ">=3.13"
+dependencies = [
+    # Keep in sync with bootstrap-venv.sh
+    # Must match PYWIKIBOT_VERSION (the checkout run.sh uses); the `mysql` extra
+    # is dropped, nothing here talks to a database.
+    "pywikibot[mwoauth,wikitextparser]==11.10.0",
+    "requests>=2.32.3",
+    "mwparserfromhell>=0.7.2",
+    "wikitextparser>=0.56.4",
+]
+
+# Local-only conveniences (uv sync installs these by default).
+[dependency-groups]
+dev = [
+    "python-dotenv>=1.1",
+]
+
+# This project is a set of scripts, not an installable package.
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = ["pywikibot", ".venv", "ENV", "logs", "apicache", "user-config.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "S", "UP", "SIM", "RUF", "PTH", "BLE"]
+ignore = [
+    "S101",    # asserts are fine in the test harnesses
+    "SIM108",  # ternaries are not always clearer
+]
+
+[tool.ruff.lint.per-file-ignores]
+# pywikibot injects `usernames` and `authenticate` into this file's namespace.
+"user-config.py.example" = ["F821"]
+"tests/*" = ["S101"]
+# The status server must listen on all interfaces inside the pod.
+"serve.py" = ["S104"]
+
+[tool.mypy]
+strict = true
+python_version = "3.13"
+ignore_missing_imports = true

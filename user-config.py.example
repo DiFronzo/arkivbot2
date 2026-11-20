@@ -1,0 +1,60 @@
+# Example pywikibot configuration for the `arkivbot2` Toolforge tool.
+#
+# Copy to user-config.py in the tool home (or ~/.pywikibot/) and keep the real
+# file out of git; it is gitignored, as is the .env it reads.
+#
+# This is where the *editing account* is chosen: the tool is `arkivbot2`, the
+# jobs are `arkivbot` / `arkivbot-web`, and the account that makes the edits is
+# IngeniousBot. Its secrets come from the environment (a local .env, or
+# `toolforge envvars` on the tool).
+import os
+
+# Load .env for local runs / `pwb.py login`. Toolforge sets these as real
+# envvars, so the import is optional.
+try:
+    import dotenv as _dotenv
+    _dotenv.load_dotenv(os.path.join(os.environ.get('PYWIKIBOT_DIR', os.getcwd()), '.env'))
+except ImportError:
+    pass
+
+
+def _env(*names, default=''):
+    """First non-empty environment variable among `names` (PWB_* preferred)."""
+    for name in names:
+        value = os.getenv(name, '')
+        if value:
+            return value
+    return default
+
+
+family = 'wikipedia'
+mylang = 'no'
+
+# Both wikis run.sh can touch (-lang:no and -lang:se). PWB_USERNAME is the name
+# Toolforge's pywikibot image uses; MW_BOT_USERNAME is this tool's own name.
+BOT_USERNAME = _env('PWB_USERNAME', 'MW_BOT_USERNAME', default='IngeniousBot')
+usernames['wikipedia']['no'] = BOT_USERNAME
+usernames['wikipedia']['se'] = BOT_USERNAME
+
+# OAuth 1.0a (needs the pywikibot[mwoauth] extra, installed from requirements.txt).
+_consumer_token = _env('PWB_CONSUMER_TOKEN', 'MW_CONSUMER_TOKEN')
+_consumer_secret = _env('PWB_CONSUMER_SECRET', 'MW_CONSUMER_SECRET')
+_access_token = _env('PWB_ACCESS_TOKEN', 'MW_ACCESS_TOKEN')
+_access_secret = _env('PWB_ACCESS_SECRET', 'MW_ACCESS_SECRET')
+
+if _consumer_token and _consumer_secret and _access_token and _access_secret:
+    for _site in ('no.wikipedia.org', 'se.wikipedia.org'):
+        authenticate[_site] = (
+            _consumer_token,
+            _consumer_secret,
+            _access_token,
+            _access_secret,
+        )
+
+# Be gentle with the wikis.
+put_throttle = 10
+write_maxlag = 5
+max_retries = 3
+retry_wait = 10
+
+user_agent_description = 'ArkivBot2 (IngeniousBot) - Norwegian Wikipedia maintenance bot'
