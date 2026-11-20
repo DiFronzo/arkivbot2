@@ -32,9 +32,11 @@ mylang = 'no'
 
 # Both wikis run.sh can touch (-lang:no and -lang:se). PWB_USERNAME is the name
 # Toolforge's pywikibot image uses; MW_BOT_USERNAME is this tool's own name.
-BOT_USERNAME = _env('PWB_USERNAME', 'MW_BOT_USERNAME', default='IngeniousBot')
-usernames['wikipedia']['no'] = BOT_USERNAME
-usernames['wikipedia']['se'] = BOT_USERNAME
+# Underscore-prefixed helpers are ignored by pywikibot's config validator; a
+# plain BOT_USERNAME would make every run warn about an "unknown variable".
+_bot_username = _env('PWB_USERNAME', 'MW_BOT_USERNAME', default='IngeniousBot')
+usernames['wikipedia']['no'] = _bot_username
+usernames['wikipedia']['se'] = _bot_username
 
 # OAuth 1.0a (needs the pywikibot[mwoauth] extra, installed from requirements.txt).
 _consumer_token = _env('PWB_CONSUMER_TOKEN', 'MW_CONSUMER_TOKEN')

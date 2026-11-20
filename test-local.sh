@@ -81,6 +81,18 @@ EOF
     echo "==> no user-config.py found, using throwaway one in $PYWIKIBOT_DIR"
 fi
 
+step "user-config.py.example loads without pywikibot warnings"
+EXAMPLE_CFG="$(mktemp -d)"
+cp user-config.py.example "$EXAMPLE_CFG/user-config.py"
+PYWIKIBOT_DIR="$EXAMPLE_CFG" PYTHONWARNINGS=error::UserWarning \
+    uv run --quiet python -c "
+import pywikibot
+assert pywikibot.config.usernames['wikipedia']['no'] == 'IngeniousBot'
+print('ok: no unknown-variable warnings')
+" || fail "user-config.py.example triggers a pywikibot config warning"
+rm -f "$EXAMPLE_CFG/user-config.py"
+rmdir "$EXAMPLE_CFG"
+
 step "configured account"
 uv run --quiet python - <<'PY'
 from pywikibot import config
