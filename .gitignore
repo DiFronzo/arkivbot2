@@ -30,6 +30,7 @@ __pycache__/
 .python_history
 .cache
 .toolskube
+.DS_Store
 
 # Credentials — never commit (see AGENTS.md "Hard rules")
 user-config.py
