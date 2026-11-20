@@ -221,6 +221,7 @@ grep -q '^ERROR:' <<<"$FILTER_OUT" || fail "filter dropped the ERROR summary"
 grep -q 'TranslationError' <<<"$FILTER_OUT" || fail "filter dropped the exception line"
 grep -q 'File "' <<<"$FILTER_OUT" && fail "filter kept a traceback frame"
 grep -q '/data/project' <<<"$FILTER_OUT" && fail "filter kept an absolute path"
+grep -qE '^[[:space:]]*[~^]{2,}[[:space:]]*$' <<<"$FILTER_OUT" && fail "filter kept traceback carets"
 echo "ok"
 
 step "python syntax"

@@ -17,6 +17,9 @@ from collections.abc import Iterable, Iterator
 
 # A traceback frame and the source line beneath it.
 FRAME = re.compile(r'^\s+File ".+"')
+# Python 3.11+ renders tracebacks with ^^^^ / ~~~~ underlines; no value on a
+# public page.
+CARETS = re.compile(r'^\s*[~^]{2,}\s*$')
 # Absolute paths that reveal the tool home or the runner's layout.
 ABS_PATH = re.compile(r'(?:/data/project|/home|/Users|/private|/tmp)/[^\s:,)\]]+')
 
@@ -31,6 +34,8 @@ def sanitize(lines: Iterable[str]) -> Iterator[str]:
         drop_source_line = False
         if FRAME.match(line):
             drop_source_line = True
+            continue
+        if CARETS.match(line):
             continue
         yield ABS_PATH.sub('<path>', line)
 

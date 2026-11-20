@@ -202,6 +202,16 @@ fi
     echo "------------------------------------------"
 } | tee -a "$LOG"
 
+# Per-page failures (spam filter, bad template, edit conflict) do not change
+# archivebot's exit status, so count them explicitly. They are reported but do
+# not fail the job, otherwise one unarchivable page would email every night.
+if [[ "$SIMULATE" == 0 ]]; then
+    PAGE_ERRORS="$(grep -cE '^ERROR: (Error occurred while processing page|Missing or malformed template in page)' "$LOG" 2>/dev/null || true)"
+    if [[ "${PAGE_ERRORS:-0}" -gt 0 ]]; then
+        echo "⚠️  $PAGE_ERRORS page(s) reported errors this run, see the log above" | tee -a "$LOG"
+    fi
+fi
+
 if (( FAILURES > 0 || FILTER_FAILURES > 0 )); then
     echo "❌ $FAILURES archivebot invocation(s) and $FILTER_FAILURES filter failure(s)" >&2
     exit 1
