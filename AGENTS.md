@@ -40,7 +40,7 @@ plus a static status page at <https://arkivbot2.toolforge.org/>.
 - Bot account: **IngeniousBot**, <https://no.wikipedia.org/wiki/Bruker:IngeniousBot>
   (the legacy `ArkivBot` account is not accessible; the 2023 tool `arkivbot` is
   dead, it ran a PHP 7.4 webservice, and its home must not be reused)
-- Source: <https://github.com/danmichaelo/arkivbot>
+- Source: <https://github.com/DiFronzo/arkivbot2>
 
 ## Layout
 

@@ -134,6 +134,7 @@ Full runbook, operational limits and gotchas: [`AGENTS.md`](AGENTS.md).
 - Contributions: <https://no.wikipedia.org/wiki/Spesial:Bidrag/IngeniousBot>
 - Status page: <https://arkivbot2.toolforge.org/>
 - Toolforge tool: <https://toolsadmin.wikimedia.org/tools/id/arkivbot2>
+- Source: <https://github.com/DiFronzo/arkivbot2>
 
 ## License
 
