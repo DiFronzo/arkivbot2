@@ -2,7 +2,7 @@
 name = "arkivbot2"
 version = "0.2.0"
 description = "Pywikibot archivebot for Norwegian Bokmål and Northern Sami Wikipedia (Toolforge tool `arkivbot2`)"
-readme = "README"
+readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.13"
 dependencies = [

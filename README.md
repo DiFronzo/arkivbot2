@@ -68,6 +68,9 @@ SKIP_LINT=1 ./test-local.sh
 The page/log contract is covered by `tests/status-page.test.mjs`, which runs the
 real inline script from `index.html` against a DOM stub: log parsing (including
 `date`'s space-padded day), run state, stall detection, 429 backoff, poll rates.
+`test-local.sh` also checks that `serve.py` refuses traversal, dotfiles and
+symlinks, that `filter-log.py` strips tracebacks and absolute paths, that a
+second concurrent run backs off, and that no secret is tracked in git.
 
 ## Verifying without edits
 
@@ -114,12 +117,13 @@ toolforge envvars create PWB_CONSUMER_TOKEN
 
 cp user-config.py.example user-config.py      # reads everything from the env
 toolforge jobs run bootstrap-venv --command "./bootstrap-venv.sh" --image python3.13 --wait
-toolforge jobs load jobs.yaml                 # arkivbot, arkivbot-web, logrotate
 
-# prove it works before it edits anything, then go live
+# prove it works before anything is scheduled: reads the wikis, saves nothing
 toolforge jobs run arkivbot-dry --command "./run.sh --simulate" --image python3.13 --wait 1800
-toolforge jobs logs arkivbot-dry
-toolforge jobs restart arkivbot
+toolforge jobs logs arkivbot-dry             # must report IngeniousBot and no ERROR lines
+
+# only now install the jobs; this also starts the daily editing run
+toolforge jobs load jobs.yaml                # arkivbot, arkivbot-web, logrotate
 ```
 
 Full runbook, operational limits and gotchas: [`AGENTS.md`](AGENTS.md).

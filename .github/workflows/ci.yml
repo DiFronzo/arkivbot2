@@ -1,0 +1,62 @@
+---
+name: ci
+
+# Runs the parts of ./test-local.sh that need no wiki access and no pywikibot
+# checkout: lint gates, shell syntax, and the status-page contract tests.
+# The full suite (uv sync + git clone of the pinned pywikibot) stays local.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Nothing secret or native-dropping is tracked
+        run: bash tests/tracked-files.test.sh
+
+      - name: Shell syntax
+        run: for script in run.sh bootstrap-venv.sh test-local.sh health-check.sh; do bash -n "$script"; done
+
+      - name: ShellCheck
+        run: uvx --from shellcheck-py shellcheck -x run.sh bootstrap-venv.sh test-local.sh health-check.sh tests/tracked-files.test.sh
+
+      - name: Ruff
+        run: uvx ruff check .
+
+      - name: Mypy
+        run: >
+          uvx mypy --strict --python-version 3.13 --no-incremental --ignore-missing-imports
+          serve.py filter-log.py check-oauth.py web-preview.py audit-templates.py
+
+      - name: Python syntax
+        run: for file in serve.py filter-log.py check-oauth.py web-preview.py audit-templates.py; do python3 -m py_compile "$file"; done
+
+      - name: Pins agree
+        run: |
+          ref="$(tr -d '[:space:]' < PYWIKIBOT_VERSION)"
+          grep -q "==${ref}" pyproject.toml || { echo "pyproject does not pin $ref"; exit 1; }
+          echo "pinned pywikibot: $ref"
+
+      - name: Status page contract tests
+        run: node tests/status-page.test.mjs
+
+      - name: Toolforge job definitions parse
+        run: uvx --from pyyaml python -c "import yaml; d=yaml.safe_load(open('jobs.yaml')); print([j['name'] for j in d])"

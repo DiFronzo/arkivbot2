@@ -36,6 +36,9 @@ export PYTHONPATH="$PYWIKI:$PYWIKI/scripts"
 step() { printf '\n==> %s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
+step "nothing secret or native-dropping is tracked"
+bash tests/tracked-files.test.sh || fail "secret or droppings in the index"
+
 step "shell syntax"
 for script in run.sh bootstrap-venv.sh test-local.sh; do
     bash -n "$script" || fail "bash -n $script"
@@ -96,6 +99,23 @@ rc=$?
 set -e
 [[ $rc -eq 1 ]] || fail "run.sh exited $rc for a non-pinned checkout, expected 1"
 echo "ok"
+
+step "a second concurrent run backs off"
+if command -v flock >/dev/null 2>&1; then
+    exec 8>"$PWD/.arkivbot.lock"
+    flock -n 8
+    set +e
+    LOCK_OUT="$(PYTHON=/usr/bin/false PYWIKI="$PYWIKI" VENV="$PWD/.venv" ./run.sh --simulate 2>&1)"
+    lock_rc=$?
+    set -e
+    flock -u 8
+    exec 8>&-
+    [[ $lock_rc -eq 0 ]] || fail "a locked-out run exited $lock_rc, expected 0"
+    grep -q 'another run is in progress' <<<"$LOCK_OUT" || fail "locked-out run did not say why"
+    echo "ok: exits 0 without doing anything"
+else
+    echo "skipped: flock not installed (macOS); CI covers this on Linux"
+fi
 
 step "run.sh fails when archivebot fails, and a dry run writes nothing"
 BEFORE="$(cat public_html/out public_html/status 2>/dev/null | shasum || true)"
@@ -160,8 +180,39 @@ grep -q '^HTTP/.* 200' <<<"$MISSING" || fail "/status is not 200 when the file i
 grep -q 'unknown' <<<"$MISSING" || fail "/status body should be 'unknown' when absent"
 echo "ok"
 
+step "serve.py only serves the allowlist"
+TRAVERSAL="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/../run.sh" || true)"
+DOTFILE="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/.gitignore" || true)"
+LOGFILE="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/serve.py" || true)"
+[[ "$TRAVERSAL" == 404 ]] || fail "/../run.sh answered $TRAVERSAL, expected 404"
+[[ "$DOTFILE" == 404 ]] || fail "/.gitignore answered $DOTFILE, expected 404"
+[[ "$LOGFILE" == 404 ]] || fail "/serve.py answered $LOGFILE, expected 404"
+rm -f "$SERVE_DIR/status"
+ln -s /etc/hosts "$SERVE_DIR/status"
+SYMLINK="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/status" || true)"
+[[ "$SYMLINK" == 404 ]] || fail "a symlinked /status answered $SYMLINK, expected 404"
+rm -f "$SERVE_DIR/status"
+echo "ok: traversal, dotfiles and symlinks are refused"
+
+step "filter-log.py keeps the story, drops paths and frames"
+FILTER_OUT="$(.venv/bin/python filter-log.py <<'SAMPLE'
+>>> [[no:Wikipedia:Torget]] <<<
+Archiving 31 thread(s).
+ERROR: Error occurred while processing page [[no:Diskusjon:Neger]]
+Traceback (most recent call last):
+  File "/data/project/arkivbot2/pywikibot/scripts/archivebot.py", line 1003, in process_page
+    archiver.run()
+pywikibot.exceptions.TranslationError: No translation available for key
+SAMPLE
+)"
+grep -q '^ERROR:' <<<"$FILTER_OUT" || fail "filter dropped the ERROR summary"
+grep -q 'TranslationError' <<<"$FILTER_OUT" || fail "filter dropped the exception line"
+grep -q 'File "' <<<"$FILTER_OUT" && fail "filter kept a traceback frame"
+grep -q '/data/project' <<<"$FILTER_OUT" && fail "filter kept an absolute path"
+echo "ok"
+
 step "python syntax"
-for file in serve.py check-oauth.py web-preview.py audit-templates.py user-config.py.example; do
+for file in serve.py filter-log.py check-oauth.py web-preview.py audit-templates.py user-config.py.example; do
     uv run --quiet python -m py_compile "$file" || fail "py_compile $file"
 done
 echo "ok"
@@ -172,7 +223,8 @@ if [[ "${SKIP_LINT:-0}" == 1 ]]; then
 elif ! command -v uvx >/dev/null 2>&1; then
     echo "skipped: uvx not found"
 else
-    uvx --quiet --from shellcheck-py shellcheck -x run.sh bootstrap-venv.sh test-local.sh \
+    uvx --quiet --from shellcheck-py shellcheck -x \
+        run.sh bootstrap-venv.sh test-local.sh health-check.sh tests/tracked-files.test.sh \
         || fail "shellcheck"
     uvx --quiet ruff check --no-cache . \
         || fail "ruff"

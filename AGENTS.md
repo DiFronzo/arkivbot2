@@ -52,11 +52,13 @@ plus a static status page at <https://arkivbot2.toolforge.org/>.
 | `PYWIKIBOT_VERSION` | The pywikibot release tag everything is pinned to (wheel and checkout). |
 | `requirements.txt` | Hashed, locked runtime requirements. Regenerate with `uv export`. |
 | `pyproject.toml` / `uv.lock` / `.python-version` | Local dev env (uv), Python 3.13; dependency pins must match `PYWIKIBOT_VERSION`. |
-| `serve.py` | Status-page server for the `arkivbot-web` job: no request logging, `nosniff`, `text/plain` + `no-store` for `out`/`status`, `200 unknown` before the first run. |
+| `serve.py` | Status-page server for the `arkivbot-web` job. Serves an allowlist only (`/`, `/index.html`, `/out`, `/status`); refuses traversal, dotfiles and symlinks. No request logging, `nosniff`, `text/plain` + `no-store` for the runtime files, `200 unknown` before the first run. |
+| `filter-log.py` | Strips traceback frames and absolute paths from archivebot output before it reaches `public_html/out`. Full output stays in `logs/main.log` and the job log. |
 | `health-check.sh` | Liveness probe for `arkivbot-web` (`health-check-script`), curl-free. |
 | `logrotate.conf` | Rotation for the job logs (`logrotate-arkivbot`). |
 | `public_html/index.html` | Status dashboard (no CDN, no PHP, no build step). |
 | `test-local.sh` | Full local suite: syntax, pins, exit codes, page contract, server, linters (`--live` adds a read-only simulate run). |
+| `tests/tracked-files.test.sh` | Fails if `.env`, `user-config.py`, a password file, `.DS_Store` or `*.pyc` reaches the git index. |
 | `tests/status-page.test.mjs` | Node script that runs the inline script from `index.html` against a DOM stub. |
 | `audit-templates.py` | Read-only audit of pages whose config template archivebot would reject. |
 | `check-oauth.py` | Secret-free shape check of the OAuth values. |
@@ -81,6 +83,14 @@ plus a static status page at <https://arkivbot2.toolforge.org/>.
   `ERROR:` line it writes is also highlighted on the status page.
 - **The status page must never show a fake run.** `--simulate` writes only to
   stdout; use `web-preview.py` to see the live UI.
+- **The public log is filtered, the private one is not.** `public_html/out` goes
+  through `filter-log.py`; tracebacks and paths stay in pywikibot's
+  `logs/main.log` and the job's own log. Do not bypass the filter.
+- **`jobs load` starts the schedule.** Always run `arkivbot-dry` before it, so a
+  broken credential cannot go live just because the deploy script succeeded.
+- **Production requires `flock`, `timeout` and `stdbuf`.** `run.sh` exits 1 if
+  any is missing (a dry run only warns), so a silently unlocked or uncapped run
+  cannot happen.
 
 ## Bot account and credentials
 
@@ -142,6 +152,10 @@ scp/rsync). Then on a bastion (`ssh login.toolforge.org`, then
 # 1. Confirm the images still exist (python3.13 newest; mariadb for logrotate)
 toolforge jobs images | grep -E 'python3|mariadb'
 
+# 1b. Confirm the image has the tools run.sh requires (it exits 1 without them)
+toolforge jobs run probe --command "flock --version; timeout --version | head -1; stdbuf --version | head -1" \
+    --image python3.13 --wait
+
 # 2. Fresh tool: nothing to stop. If you inherited a webservice, retire it
 #    first: it cannot start (PHP 7.4 is gone) and it would hold the route.
 toolforge webservice stop || true
@@ -158,20 +172,22 @@ cp user-config.py.example user-config.py
 # 5. Rebuild ENV: pinned checkout + hashed requirements, inside the image
 toolforge jobs run bootstrap-venv --command "./bootstrap-venv.sh" --image python3.13 --wait
 
-# 6. Load the three jobs (flushes + reloads arkivbot, arkivbot-web, logrotate)
-toolforge jobs load jobs.yaml
-toolforge jobs list --output long        # all three present
+# 6. Prove the bot half without editing: reads the wikis, saves nothing.
+#    `jobs load` has not run yet, so nothing is scheduled at this point.
+toolforge jobs run arkivbot-dry --command "./run.sh --simulate" --image python3.13 --wait 1800
+toolforge jobs logs arkivbot-dry        # must authenticate as IngeniousBot, no ERROR lines
 
-# 7. Verify the web half
+# 7. Load the three jobs. This is the step that starts the daily editing run.
+toolforge jobs load jobs.yaml
+toolforge jobs list --output long        # arkivbot, arkivbot-web, logrotate
+
+# 8. Verify the web half
 toolforge jobs list --output long        # arkivbot-web should show the public URL
 curl -si https://arkivbot2.toolforge.org/ | head -5
 curl -s  https://arkivbot2.toolforge.org/status
+curl -s -o /dev/null -w '%{http_code}\n' https://arkivbot2.toolforge.org/run.sh   # must be 404
 
-# 8. Prove the bot half without editing: reads the wikis, saves nothing
-toolforge jobs run arkivbot-dry --command "./run.sh --simulate" --image python3.13 --wait 1800
-toolforge jobs logs arkivbot-dry
-
-# 9. Go live
+# 9. Watch the first scheduled run
 toolforge jobs restart arkivbot
 toolforge jobs logs -f arkivbot
 ```

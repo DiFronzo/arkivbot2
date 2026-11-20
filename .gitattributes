@@ -1,0 +1,15 @@
+# Normalise line endings so the shell scripts stay runnable when checked out
+# on a machine with core.autocrlf enabled.
+* text=auto eol=lf
+
+*.sh text eol=lf
+*.py text eol=lf
+*.mjs text eol=lf
+*.conf text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+requirements.txt text eol=lf
+
+# Hashes and lock data: keep them diffable, not "binary".
+requirements.txt diff
+uv.lock diff
