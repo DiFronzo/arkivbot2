@@ -24,7 +24,8 @@ import re
 import sys
 from typing import Any
 
-from pywikibot.exceptions import SpamblacklistError
+import pywikibot
+from pywikibot.exceptions import LockedPageError, SpamblacklistError
 from pywikibot.page import BasePage
 
 # Characters that can appear inside a URL in wikitext.
@@ -33,6 +34,8 @@ TRAILING = '.,;:!?'
 MAX_ATTEMPTS = 5
 
 _original_save: Any = None
+_original_exception: Any = None
+_error: Any = None
 
 
 def _trim(url: str) -> tuple[str, str]:
@@ -125,11 +128,34 @@ def save_with_fallback(self: Any, *args: Any, **kwargs: Any) -> Any:
     raise AssertionError('unreachable: the loop either returns or raises')
 
 
+def concise_exception(msg: str = '', *args: Any, **kwargs: Any) -> None:
+    """Replace archivebot's traceback for conditions the wiki decided.
+
+    archivebot's generic handler prints a full traceback for every failure. For
+    a protected page or a still-blocked link the outcome is known, so print one
+    actionable line instead and keep the traceback for anything unexpected.
+    """
+    error = sys.exc_info()[1]
+    title = getattr(error, 'title', '') or '(unknown page)'
+    if isinstance(error, LockedPageError):
+        _error(f'SKIPPED: {title} is protected, an admin has to lower the protection')
+        return
+    if isinstance(error, SpamblacklistError):
+        _error(f'SKIPPED: {title} is still blocked by the spam filter ({error.url})')
+        return
+    _original_exception(msg, *args, **kwargs)
+
+
 def install() -> None:
-    """Patch pywikibot's save once for this process."""
-    global _original_save
+    """Patch pywikibot once for this process."""
+    global _original_save, _original_exception, _error
     _original_save = BasePage.save
     BasePage.save = save_with_fallback
+    # pywikibot re-exports these at package level without declaring them, so
+    # the type checker cannot see them; ruff prefers plain attribute access.
+    _original_exception = pywikibot.exception  # type: ignore[attr-defined]
+    _error = pywikibot.error  # type: ignore[attr-defined]
+    pywikibot.exception = concise_exception  # type: ignore[attr-defined]
 
 
 def main() -> int:

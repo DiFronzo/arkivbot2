@@ -280,7 +280,34 @@ assert result == 'saved', result
 assert len(attempts) == 3, f'expected 3 save attempts, got {len(attempts)}'
 assert '<nowiki>https://archive.today/x</nowiki>' in page.text
 assert '<nowiki>https://t.co/z</nowiki>' in page.text
-print('ok: 6 link cases, and two blocked sites resolved in one save')
+
+# Wiki-decided failures get one actionable line instead of a traceback.
+from pywikibot.exceptions import LockedPageError
+
+printed = []
+wrapper._error = printed.append
+wrapper._original_exception = lambda msg='', *a, **k: printed.append(f'TRACEBACK {msg}')
+
+
+class StubBlocked:
+    def __str__(self):
+        return '[[no:Brukerdiskusjon:Nsaa/Diskusjon2025]]'
+
+
+for exc, expected in ((LockedPageError(StubBlocked()), 'is protected'),
+                      (SpamblacklistError(StubBlocked(), 'archive.today'), 'spam filter'),
+                      (ValueError('boom'), 'TRACEBACK')):
+    printed.clear()
+    try:
+        raise exc
+    except Exception:
+        wrapper.concise_exception('Error occurred while processing page X')
+    assert len(printed) == 1, printed
+    assert expected in printed[0], f'{expected!r} not in {printed[0]!r}'
+    if expected != 'TRACEBACK':
+        assert printed[0].startswith('SKIPPED:'), printed[0]
+
+print('ok: 6 link cases, two blocked sites, and concise SKIPPED lines')
 PY
 
 step "python syntax"

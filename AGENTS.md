@@ -220,6 +220,12 @@ Bumping Python or pywikibot later: edit `.python-version`/`requires-python` and
 - **`archivebot.py` is not in the PyPI wheel**; it lives in the pinned checkout,
   which `run.sh` puts on `PYTHONPATH` (this also shadows the wheel, so wheel and
   checkout can never disagree).
+- **A sysop-protected archive page cannot be written by the bot.** `edit=sysop`
+  needs the `sysop` right; no bot flag, `-force` or API parameter bypasses it.
+  The bot does have `editsemiprotected` (via `autoconfirmed`), so asking an
+  admin for **semi**-protection is the fix. The wrapper prints
+  `SKIPPED: ... is protected, an admin has to lower the protection` instead of
+  a traceback; anything unexpected still gets its traceback.
 - **no.wiki's spam blacklist can block an archive save** (archive.today is
   listed). The save is rejected, archivebot skips the page, and those threads
   never move. `archivebot_wrapper.py` wraps that URL in `<nowiki>` and retries,
